@@ -1,5 +1,5 @@
 pipeline {
-    agent { label 'Linux-X64' }
+    agent any
 
     stages {
         stage('Checkout') {
