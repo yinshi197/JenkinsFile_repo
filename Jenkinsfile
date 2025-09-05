@@ -9,6 +9,13 @@ pipeline {
             }
         }
 
+        stage('Prepare') {
+            steps {
+                echo '设置脚本执行权限...'
+                sh 'chmod +x scripts/*.sh'
+            }
+        }
+
         stage('Build') {
             steps {
                 sh 'scripts/build.sh'
