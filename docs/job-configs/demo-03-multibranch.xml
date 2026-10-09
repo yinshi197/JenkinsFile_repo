@@ -1,0 +1,59 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<org.jenkinsci.plugins.workflow.multibranch.WorkflowMultiBranchProject plugin="workflow-multibranch">
+  <actions/>
+  <description>【演示 3】多分支流水线（Multibranch Pipeline）
+
+本任务演示：
+1) 自动发现分支——扫描 GitSCMSource 中匹配 includes 规则的分支（main、test/*），
+   每个分支自动生成一个子任务，无需手工建任务
+2) Jenkinsfile 即流水线——每个分支使用自己 Jenkinsfile（脚本路径 Jenkinsfile），
+   实现"按分支差异化构建"
+3) 分支索引(Branch Indexing)与日志——每次扫描都会记录发现/删除的分支
+4) 推送自动构建——多分支任务配合扫描触发器(PeriodicFolderTrigger 或 webhook)，
+   分支有新提交时自动构建对应分支
+
+本示例使用 git 插件自带的 GitSCMSource（github-branch-source 插件是 GitHub 专用增强版，
+支持 PR 发现与 commit 状态回写）。</description>
+  <properties/>
+  <folderViews class="jenkins.branch.MultiBranchProjectViewHolder" plugin="branch-api">
+    <owner class="org.jenkinsci.plugins.workflow.multibranch.WorkflowMultiBranchProject" reference="../.."/>
+  </folderViews>
+  <healthMetrics/>
+  <icon class="jenkins.branch.MetadataActionFolderIcon" plugin="branch-api">
+    <owner class="org.jenkinsci.plugins.workflow.multibranch.WorkflowMultiBranchProject" reference="../.."/>
+  </icon>
+  <orphanedItemStrategy class="com.cloudbees.hudson.plugins.folder.computed.DefaultOrphanedItemStrategy" plugin="cloudbees-folder">
+    <pruneDeadBranches>true</pruneDeadBranches>
+    <daysToKeep>-1</daysToKeep>
+    <numToKeep>-1</numToKeep>
+    <abortBuilds>false</abortBuilds>
+  </orphanedItemStrategy>
+  <triggers>
+    <com.cloudbees.hudson.plugins.folder.computed.PeriodicFolderTrigger plugin="cloudbees-folder">
+      <spec>H H * * *</spec>
+      <interval>86400000</interval>
+    </com.cloudbees.hudson.plugins.folder.computed.PeriodicFolderTrigger>
+  </triggers>
+  <sources>
+    <jenkins.branch.BranchSource>
+      <source class="jenkins.plugins.git.GitSCMSource" plugin="git@5.10.1">
+        <id>yinshi197-JenkinsFile_repo</id>
+        <remote>https://github.com/yinshi197/JenkinsFile_repo.git</remote>
+        <credentialsId></credentialsId>
+        <includes>main test/*</includes>
+        <excludes></excludes>
+        <ignoreOnPushNotifications>false</ignoreOnPushNotifications>
+        <traits>
+          <jenkins.plugins.git.traits.BranchDiscoveryTrait/>
+        </traits>
+      </source>
+      <strategy class="jenkins.branch.DefaultBranchPropertyStrategy">
+        <properties class="empty-list"/>
+      </strategy>
+    </jenkins.branch.BranchSource>
+  </sources>
+  <factory class="org.jenkinsci.plugins.workflow.multibranch.WorkflowBranchProjectFactory">
+    <owner class="org.jenkinsci.plugins.workflow.multibranch.WorkflowMultiBranchProject" reference="../.."/>
+    <scriptPath>Jenkinsfile</scriptPath>
+  </factory>
+</org.jenkinsci.plugins.workflow.multibranch.WorkflowMultiBranchProject>
