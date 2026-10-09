@@ -67,6 +67,10 @@ GIT_PREVIOUS_SUCCESSFUL_COMMIT =      （首次构建为空）
 **变更日志**：任务页 → 某次构建 → *变更记录*。首次构建显示 `First time build. Skipping changelog.`；
 之后每次拉到新提交时，会显示该提交的作者、提交信息和触达文件列表。
 
+**实测（推送新提交后）**：向 `main` 推送新提交 `6e14d85`（本手册）后，点击 *Poll Now*（对应接口
+`POST /job/demo-01-freestyle-basics/polling`）→ 轮询发现新提交并自动排队构建 #2（SUCCESS），
+变更日志即为该提交（作者 `1974126471`）。等定时轮询到点也会同样触发。
+
 ### 3.2 demo-02：Pipeline 中的 Git 用法
 
 **演示阶段**：
@@ -94,6 +98,10 @@ GIT_PREVIOUS_SUCCESSFUL_COMMIT =      （首次构建为空）
 **实测结果**：扫描后自动生成 2 个子任务：
 - `main`（构建 #1、#2 均 SUCCESS）
 - `test/test1`（构建 #1、#2 均 SUCCESS）
+
+**实测（推送新提交后）**：向 `main` 和 `test/test1` 各推送一个新提交，执行
+*Scan Multibranch Pipeline Now* 后，两个分支均自动排队构建（#3，均 SUCCESS），
+各自变更日志都记录了新提交 `6e14d85`。
 
 每个分支任务使用**该分支自己的 Jenkinsfile** 执行流水线；分支删除后会按 *Orphaned Item Strategy* 自动移除子任务。分支索引日志记录每次扫描的发现/删除情况（任务页 → *Branch Indexing Log*）。
 
