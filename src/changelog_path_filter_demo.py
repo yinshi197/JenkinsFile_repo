@@ -3,3 +3,7 @@
 
 def describe():
     return "changelog path filter demo"
+
+
+def describe_more():
+    return "docs and src changed in one commit"
