@@ -9,7 +9,7 @@
 |---|---|
 | Jenkins | 2.585，http://localhost:8086 （Docker 容器 `jenkins`，账号 `root` / 密码 `root`） |
 | Git 相关插件 | `git` 5.10.1、`git-client` 6.6.1、`git-parameter` 462.463.v496a_59f698e5、`workflow-multibranch`（多分支）、`github-branch-source`（GitHub 增强） |
-| 演示仓库 | https://github.com/yinshi197/JenkinsFile_repo.git （分支：`main`、`test/test1`；公开仓库，匿名可克隆） |
+| 演示仓库 | https://github.com/yinshi197/JenkinsFile_repo.git （分支：`main`、`test/test1`、`test/changelog-*` 变更日志测试分支，见 §8；公开仓库，匿名可克隆） |
 | Jenkinsfile | 仓库根目录 `Jenkinsfile`（`checkout scm` → `chmod` → `build.sh` → `test.sh`） |
 
 已创建的演示任务：
@@ -232,3 +232,95 @@ curl -X POST -u root:root -b cookies.txt \
 | `demo-04-git-parameter.xml` | 参数化构建任务 |
 | `approve-and-wait.groovy` | 脚本控制台工具：等待并批准待审批的内联 Pipeline 脚本 |
 | `serialize-gitparameter.groovy` | 脚本控制台工具：用当前插件版本生成 Git Parameter 的准确 XML |
+
+## 8. 变更日志（Change Log）测试分支
+
+为验证 Git 插件在不同分支形态下的 change log 表现，仓库中准备了 9 个 `test/changelog-*` 分支，
+全部基于 `main` 的 `609d875` 构造，均保留根目录 `Jenkinsfile`，demo-03 的 `main test/*`
+包含规则扫描后即可发现。
+
+| 分支 | 构造方式 | 提交数 | 重点观察 |
+|---|---|---|---|
+| `test/changelog-linear` | 6 个线性提交 | 6 | 多提交列表、同一文件重复出现、多行提交正文、中文/emoji、其他作者 `QA Bot`、空提交 |
+| `test/changelog-merge-noff` | 2 个特性提交 + `--no-ff` 合并 | 3 | 合并提交（两个父提交）是否出现在 change log |
+| `test/changelog-squash` | 3 个提交 squash 成 1 个 | 1 | squash 后只应出现 1 条提交记录 |
+| `test/changelog-rebase` | 基于旧提交开发后 rebase 到最新 `main` | 2 | 重写后的提交 ID（与原始提交不同）如何显示 |
+| `test/changelog-cherry-pick` | 从 `test/changelog-linear` cherry-pick 2 个提交 | 2 | 提交说明相同、提交 ID 不同 |
+| `test/changelog-path-filter` | 分别只改 `docs/`、只改 `src/`、两者都改 | 3 | 配置路径限制后的轮询/change log 实际表现 |
+| `test/changelog-encoding` | 含空格、`#`、`&`、emoji 的文件名 + 超长行 | 2 | 文件名与提交说明的编码/转义显示 |
+| `test/changelog-many-commits` | 20 个提交 | 20 | 长变更日志的列表/滚动显示 |
+| `test/changelog-unrelated` | orphan 分支（与 `main` 无共同祖先） | 2 | 找不到 merge-base 时的兜底行为 |
+
+另有一个附注标签 `changelog-demo-v1.0.0`（指向 `test/changelog-linear` 末端），用于 tag 构建场景（§6.5、demo-04）。
+
+### 8.1 通用验证步骤
+
+1. demo-03 → *Scan Multibranch Pipeline Now*，等待 `test/changelog-*` 子任务被创建（扫描日志见 *Branch Indexing Log*）。
+2. 打开任一分支任务 → *Build Now*：**首次构建没有上一构建可比**，日志通常是
+   `First time build. Skipping changelog.`（同 §5 第 2 条），Change Log 为空。
+3. 再制造一次增量提交（示例见 8.2），触发该分支的第二次构建，打开 *Change Log* 观察条目。
+
+> 扫描发现新分支后，多分支任务通常会为分支排队一次构建（本环境实测如此）；
+> 若未自动构建，在分支任务页点 *Build Now* 即可。各分支也可以直接用 demo-04 的
+> Git Parameter 选择后构建（类型选 *Branch*，值形如 `origin/test/changelog-linear`），
+> 这样不必等扫描。
+
+### 8.2 各场景的增量验证
+
+线性 / 编码 / 批量提交等"正常前进"的分支，直接在分支上追加一个提交即可：
+
+```bash
+git switch test/changelog-linear
+git pull --ff-only
+echo "- 追加：验证增量 change log" >> docs/changelog-scenarios/linear/step-1.md
+git commit -am "test: 追加增量变更日志验证提交"
+git push
+```
+
+第二次构建的 change log 应只包含这条新提交。
+
+**合并提交（merge-noff）**：观察 `merge: 合并变更日志特性分支` 是否出现在列表中，
+以及它是否带有文件变更（合并提交本身通常没有自己的 diff）。
+
+**squash**：原特性分支有 3 个提交，但目标分支只有 1 个 squash 提交，change log 只应显示 1 条。
+
+**rebase / force push**：先把分支构建一次，然后改写提交 ID 再强推：
+
+```bash
+git switch test/changelog-rebase
+git pull --ff-only
+git commit --amend --no-edit --allow-empty   # 内容不变，只改写提交 ID
+git push --force-with-lease
+```
+
+再次构建时，"上一构建的提交"已不是当前 HEAD 的祖先，观察插件如何回退计算
+（可能列出该分支的全部提交，或提示无法计算，具体取决于 git plugin 版本）。
+
+**cherry-pick**：change log 按提交 ID 而不是提交说明识别提交，
+`test/changelog-cherry-pick` 中两条记录的 ID 与 `test/changelog-linear` 中的同名提交不同。
+
+**路径过滤**：在 FreeStyle 任务的 Git 中增加行为
+*Additional Behaviours → Polling ignores commits in certain paths*，Included Regions 填 `docs/.*`；
+Pipeline 等价写法：
+
+```groovy
+extensions: [[$class: 'PathRestriction', includedRegions: 'docs/.*', excludedRegions: '']]
+```
+
+该分支的 3 个提交分别只改文档、只改源码、两者都改。重点观察：轮询是否只被文档提交触发，
+以及 change log 是否同样被过滤（不同插件版本表现不一致，记录下来即可）。
+
+**孤立分支**：`test/changelog-unrelated` 与 `main` 没有 merge-base，
+可用首次/后续构建的 change log 验证插件在无共同历史时的降级表现。
+
+### 8.3 清理
+
+```bash
+git push origin --delete test/changelog-linear test/changelog-merge-noff test/changelog-squash \
+  test/changelog-rebase test/changelog-cherry-pick test/changelog-path-filter \
+  test/changelog-encoding test/changelog-many-commits test/changelog-unrelated
+git push origin :refs/tags/changelog-demo-v1.0.0
+git tag -d changelog-demo-v1.0.0
+```
+
+删除远端分支后，多分支任务按 *Orphaned Item Strategy* 自动移除对应子任务。
